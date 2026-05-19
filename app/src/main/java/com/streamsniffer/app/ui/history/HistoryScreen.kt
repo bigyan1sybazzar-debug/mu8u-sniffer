@@ -49,7 +49,7 @@ fun HistoryScreen(
             containerColor = MaterialTheme.colorScheme.surface,
             contentColor = MaterialTheme.colorScheme.primary
         ) {
-            HistoryTab.values().forEach { tab ->
+            HistoryTab.entries.forEach { tab ->
                 Tab(
                     selected = uiState.selectedTab == tab,
                     onClick = { viewModel.setTab(tab) },
