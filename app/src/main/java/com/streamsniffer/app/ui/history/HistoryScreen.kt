@@ -190,6 +190,14 @@ fun HistoryItem(
             }
 
             Row {
+                val clipboardManager = androidx.compose.ui.platform.LocalClipboardManager.current
+                val context = androidx.compose.ui.platform.LocalContext.current
+                IconButton(onClick = { 
+                    clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(stream.url))
+                    android.widget.Toast.makeText(context, "Link copied!", android.widget.Toast.LENGTH_SHORT).show()
+                }) {
+                    Icon(Icons.Default.ContentCopy, "Copy")
+                }
                 IconButton(onClick = onFavorite) {
                     Icon(
                         if (stream.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
