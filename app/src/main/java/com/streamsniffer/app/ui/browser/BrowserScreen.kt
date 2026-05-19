@@ -155,7 +155,7 @@ fun BrowserScreen(
                     }
 
                     override fun onPageFinished(view: WebView?, url: String?) {
-                        super.onPageFinished(view, url?)
+                        super.onPageFinished(view, url)
                         url?.let { viewModel.onPageFinished(it, view?.title ?: "") }
                         viewModel.onNavigationStateChanged(navigator.canGoBack, navigator.canGoForward)
                         
