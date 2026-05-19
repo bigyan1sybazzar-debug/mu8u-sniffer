@@ -19,7 +19,8 @@ data class BrowserUiState(
     val detectedStreams: List<DetectedStream> = emptyList(),
     val showStreamPanel: Boolean = false,
     val canGoBack: Boolean = false,
-    val canGoForward: Boolean = false
+    val canGoForward: Boolean = false,
+    val error: String? = null
 )
 
 @HiltViewModel
@@ -115,5 +116,9 @@ class BrowserViewModel @Inject constructor(
 
     fun clearDetectedStreams() {
         _uiState.update { it.copy(detectedStreams = emptyList(), showStreamPanel = false) }
+    }
+
+    fun clearError() {
+        _uiState.update { it.copy(error = null) }
     }
 }

@@ -22,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -29,7 +30,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.google.accompanist.webview.*
+import com.google.accompanist.web.*
 import com.streamsniffer.app.domain.sniffer.DetectedStream
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -43,6 +44,14 @@ fun BrowserScreen(
     val navigator = rememberWebViewNavigator()
     var urlInput by remember { mutableStateOf(uiState.currentUrl) }
     val focusManager = LocalFocusManager.current
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(uiState.error) {
+        uiState.error?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.clearError()
+        }
+    }
 
     LaunchedEffect(viewModel.navigateTo) {
         viewModel.navigateTo.collect { action ->
@@ -54,110 +63,65 @@ fun BrowserScreen(
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        // Address Bar
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 4.dp
-        ) {
-            Row(
-                modifier = Modifier
-                    .padding(8.dp)
-                    .fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
+    Scaffold(
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
+    ) { paddingValues ->
+        Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
+            // Address Bar
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 4.dp
             ) {
-                IconButton(onClick = { navigator.navigateBack() }, enabled = uiState.canGoBack) {
-                    Icon(Icons.Default.ArrowBack, "Back")
-                }
-                
-                TextField(
-                    value = urlInput,
-                    onValueChange = { urlInput = it },
-                    modifier = Modifier.weight(1f),
-                    colors = TextFieldDefaults.colors(
-                        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                        focusedIndicatorColor = Color.Transparent,
-                        unfocusedIndicatorColor = Color.Transparent
-                    ),
-                    shape = RoundedCornerShape(24.dp),
-                    singleLine = true,
-                    placeholder = { Text("Search or enter URL") },
-                    trailingIcon = {
-                        if (uiState.isLoading) {
-                            CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
-                        } else {
-                            IconButton(onClick = { 
-                                viewModel.onUrlEntered(urlInput)
-                                focusManager.clearFocus()
+                Row(
+                    modifier = Modifier
+                        .padding(8.dp)
+                        .fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(onClick = { navigator.navigateBack() }, enabled = uiState.canGoBack) {
+                        Icon(Icons.Default.ArrowBack, "Back")
+                    }
+                    
+                    TextField(
+                        value = urlInput,
+                        onValueChange = { urlInput = it },
+                        modifier = Modifier.weight(1f),
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                            focusedIndicatorColor = Color.Transparent,
+                            unfocusedIndicatorColor = Color.Transparent
+                        ),
+                        shape = RoundedCornerShape(24.dp),
+                        singleLine = true,
+                        placeholder = { Text("Search or enter URL") },
+                        trailingIcon = {
+                            if (uiState.isLoading) {
+                                CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                            } else {
+                                IconButton(onClick = { 
+                                    viewModel.onUrlEntered(urlInput)
+                                    focusManager.clearFocus()
+                                }) {
+                                    Icon(Icons.Default.Search, "Go")
+                                }
+                            }
+                        },
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
+                        keyboardActions = KeyboardActions(onGo = {
+                            viewModel.onUrlEntered(urlInput)
+                            focusManager.clearFocus()
+                        })
+                    )
+
+                    Box {
+                        IconButton(onClick = { viewModel.toggleStreamPanel() }) {
+                            BadgedBox(badge = {
+                                if (uiState.detectedStreams.isNotEmpty()) {
+                                    Badge { Text(uiState.detectedStreams.size.toString()) }
+                                }
                             }) {
-                                Icon(Icons.Default.Search, "Go")
-                            }
-                        }
-                    },
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
-                    keyboardActions = KeyboardActions(onGo = {
-                        viewModel.onUrlEntered(urlInput)
-                        focusManager.clearFocus()
-                    })
-                )
-
-                Box {
-                    IconButton(onClick = { viewModel.toggleStreamPanel() }) {
-                        BadgedBox(badge = {
-                            if (uiState.detectedStreams.isNotEmpty()) {
-                                Badge { Text(uiState.detectedStreams.size.toString()) }
-                            }
-                        }) {
-                            Icon(Icons.Default.FileDownload, "Streams", 
-                                tint = if (uiState.detectedStreams.isNotEmpty()) 
-                                    MaterialTheme.colorScheme.primary else LocalContentColor.current)
-                        }
-                    }
-                }
-            }
-        }
-
-        LinearProgressIndicator(
-            progress = { state.loadingState.let { if (it is LoadingState.Loading) it.progress else 0f } },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(if (uiState.isLoading) 2.dp else 0.dp),
-            color = MaterialTheme.colorScheme.primary,
-            trackColor = Color.Transparent
-        )
-
-        Box(modifier = Modifier.weight(1f)) {
-            WebView(
-                state = state,
-                modifier = Modifier.fillMaxSize(),
-                navigator = navigator,
-                onCreated = { webView ->
-                    webView.settings.javaScriptEnabled = true
-                    webView.settings.domStorageEnabled = true
-                    webView.settings.mediaPlaybackRequiresUserGesture = false
-                },
-                client = object : AccompanistWebViewClient() {
-                    override fun shouldInterceptRequest(
-                        view: WebView?,
-                        request: WebResourceRequest?
-                    ): WebResourceResponse? {
-                        return request?.let { viewModel.interceptRequest(it) } ?: super.shouldInterceptRequest(view, request)
-                    }
-
-                    override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
-                        super.onPageStarted(view, url, favicon)
-                        url?.let { 
-                            urlInput = it
-                            viewModel.onPageStarted(it) 
-                        }
-                    }
-
-                    override fun onPageFinished(view: WebView?, url: String?) {
-                        super.onPageFinished(view, url)
-                        url?.let { viewModel.onPageFinished(it, view?.title ?: "") }
-                        viewModel.onNavigationStateChanged(navigator.canGoBack, navigator.canGoForward)
                         
                         // Inject JS to find m3u8 in page source
                         view?.evaluateJavascript(

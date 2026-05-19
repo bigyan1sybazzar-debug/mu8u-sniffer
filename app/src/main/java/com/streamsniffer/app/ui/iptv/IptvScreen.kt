@@ -18,7 +18,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.streamsniffer.app.domain.model.Stream
 
@@ -133,14 +132,19 @@ fun IptvScreen(
         )
     }
 
+    val snackbarHostState = remember { SnackbarHostState() }
+    
     if (uiState.error != null) {
-        SnackbarHost(hostState = remember { SnackbarHostState() }) {
-            LaunchedEffect(uiState.error) {
-                it.showSnackbar(uiState.error!!)
-                viewModel.clearError()
-            }
+        LaunchedEffect(uiState.error) {
+            snackbarHostState.showSnackbar(uiState.error!!)
+            viewModel.clearError()
         }
     }
+
+    Scaffold(
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
+    ) { paddingValues ->
+        Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
 }
 
 @Composable
