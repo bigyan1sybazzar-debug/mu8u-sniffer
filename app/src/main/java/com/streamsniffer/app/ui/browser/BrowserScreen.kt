@@ -22,7 +22,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -115,78 +114,123 @@ fun BrowserScreen(
                         })
                     )
 
-                    Box {
-                        IconButton(onClick = { viewModel.toggleStreamPanel() }) {
-                            BadgedBox(badge = {
-                                if (uiState.detectedStreams.isNotEmpty()) {
-                                    Badge { Text(uiState.detectedStreams.size.toString()) }
-                                }
-                            }) {
-                        
-                        // Inject JS to find m3u8 in page source
-                        view?.evaluateJavascript(
-                            "(function() { return document.documentElement.outerHTML; })();"
-                        ) { html ->
-                            html?.let { viewModel.scanPageSource(it) }
+                    IconButton(onClick = { viewModel.toggleStreamPanel() }) {
+                        BadgedBox(badge = {
+                            if (uiState.detectedStreams.isNotEmpty()) {
+                                Badge { Text(uiState.detectedStreams.size.toString()) }
+                            }
+                        }) {
+                            Icon(Icons.Default.FileDownload, "Streams", 
+                                tint = if (uiState.detectedStreams.isNotEmpty()) 
+                                    MaterialTheme.colorScheme.primary else LocalContentColor.current)
                         }
                     }
                 }
+            }
+
+            LinearProgressIndicator(
+                progress = { state.loadingState.let { if (it is LoadingState.Loading) it.progress else 0f } },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(if (uiState.isLoading) 2.dp else 0.dp),
+                color = MaterialTheme.colorScheme.primary,
+                trackColor = Color.Transparent
             )
 
-            // Detected Streams Panel (Bottom Sheet overlay)
-            AnimatedVisibility(
-                visible = uiState.showStreamPanel,
-                enter = slideInVertically(initialOffsetY = { it }),
-                exit = slideOutVertically(targetOffsetY = { it }),
-                modifier = Modifier.align(Alignment.BottomCenter)
-            ) {
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 400.dp),
-                    shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-                    color = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 16.dp,
-                    shadowElevation = 8.dp
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                "Detected Streams",
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Row {
-                                TextButton(onClick = { viewModel.clearDetectedStreams() }) {
-                                    Text("Clear All")
-                                }
-                                IconButton(onClick = { viewModel.toggleStreamPanel() }) {
-                                    Icon(Icons.Default.Close, "Close")
-                                }
+            Box(modifier = Modifier.weight(1f)) {
+                WebView(
+                    state = state,
+                    modifier = Modifier.fillMaxSize(),
+                    navigator = navigator,
+                    onCreated = { webView ->
+                        webView.settings.javaScriptEnabled = true
+                        webView.settings.domStorageEnabled = true
+                        webView.settings.mediaPlaybackRequiresUserGesture = false
+                    },
+                    client = object : AccompanistWebViewClient() {
+                        override fun shouldInterceptRequest(
+                            view: WebView?,
+                            request: WebResourceRequest?
+                        ): WebResourceResponse? {
+                            return request?.let { viewModel.interceptRequest(it) } ?: super.shouldInterceptRequest(view, request)
+                        }
+
+                        override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+                            super.onPageStarted(view, url, favicon)
+                            url?.let { 
+                                urlInput = it
+                                viewModel.onPageStarted(it) 
                             }
                         }
 
-                        if (uiState.detectedStreams.isEmpty()) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(200.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text("No streams detected on this page", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        override fun onPageFinished(view: WebView?, url: String?) {
+                            super.onPageFinished(view, url)
+                            url?.let { viewModel.onPageFinished(it, view?.title ?: "") }
+                            viewModel.onNavigationStateChanged(navigator.canGoBack, navigator.canGoForward)
+                            
+                            view?.evaluateJavascript(
+                                "(function() { return document.documentElement.outerHTML; })();"
+                            ) { html ->
+                                html?.let { viewModel.scanPageSource(it) }
                             }
-                        } else {
-                            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                items(uiState.detectedStreams) { stream ->
-                                    StreamDetectionCard(
-                                        stream = stream,
-                                        onPlay = { viewModel.playStream(it.url) },
-                                        onSave = { viewModel.saveStream(it) }
-                                    )
+                        }
+                    }
+                )
+
+                AnimatedVisibility(
+                    visible = uiState.showStreamPanel,
+                    enter = slideInVertically(initialOffsetY = { it }),
+                    exit = slideOutVertically(targetOffsetY = { it }),
+                    modifier = Modifier.align(Alignment.BottomCenter)
+                ) {
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 400.dp),
+                        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+                        color = MaterialTheme.colorScheme.surface,
+                        tonalElevation = 16.dp,
+                        shadowElevation = 8.dp
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    "Detected Streams",
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Row {
+                                    TextButton(onClick = { viewModel.clearDetectedStreams() }) {
+                                        Text("Clear All")
+                                    }
+                                    IconButton(onClick = { viewModel.toggleStreamPanel() }) {
+                                        Icon(Icons.Default.Close, "Close")
+                                    }
+                                }
+                            }
+
+                            if (uiState.detectedStreams.isEmpty()) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(200.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text("No streams detected on this page", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            } else {
+                                LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    items(uiState.detectedStreams) { stream ->
+                                        StreamDetectionCard(
+                                            stream = stream,
+                                            onPlay = { viewModel.playStream(it.url) },
+                                            onSave = { viewModel.saveStream(it) }
+                                        )
+                                    }
                                 }
                             }
                         }

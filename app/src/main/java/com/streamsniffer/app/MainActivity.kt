@@ -19,6 +19,7 @@ class MainActivity : ComponentActivity() {
     private var externalStreamUrl: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        installSplashScreen()
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         handleIntent(intent)

@@ -18,6 +18,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.streamsniffer.app.domain.model.Stream
 
@@ -30,70 +31,82 @@ fun IptvScreen(
     val uiState by viewModel.uiState.collectAsState()
     var showAddDialog by remember { mutableStateOf(false) }
     var playlistUrlInput by remember { mutableStateOf("") }
+    val snackbarHostState = remember { SnackbarHostState() }
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        TopAppBar(
-            title = { Text("IPTV Explorer", fontWeight = FontWeight.Bold) },
-            actions = {
-                IconButton(onClick = { showAddDialog = true }) {
-                    Icon(Icons.Default.AddLink, "Add Playlist")
+    LaunchedEffect(uiState.error) {
+        uiState.error?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.clearError()
+        }
+    }
+
+    Scaffold(
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
+    ) { paddingValues ->
+        Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
+            TopAppBar(
+                title = { Text("IPTV Explorer", fontWeight = FontWeight.Bold) },
+                actions = {
+                    IconButton(onClick = { showAddDialog = true }) {
+                        Icon(Icons.Default.AddLink, "Add Playlist")
+                    }
                 }
-            }
-        )
-
-        // Search Bar
-        TextField(
-            value = uiState.searchQuery,
-            onValueChange = { viewModel.setSearch(it) },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            placeholder = { Text("Search channels or categories...") },
-            leadingIcon = { Icon(Icons.Default.Search, null) },
-            shape = RoundedCornerShape(12.dp),
-            colors = TextFieldDefaults.colors(
-                focusedIndicatorColor = Color.Transparent,
-                unfocusedIndicatorColor = Color.Transparent
             )
-        )
 
-        if (uiState.isLoading) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
-            }
-        } else if (uiState.channels.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Default.LiveTv, null, modifier = Modifier.size(64.dp), 
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text("No IPTV channels loaded", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Button(
-                        onClick = { showAddDialog = true },
-                        modifier = Modifier.padding(top = 16.dp)
-                    ) {
-                        Text("Import M3U Playlist")
+            // Search Bar
+            TextField(
+                value = uiState.searchQuery,
+                onValueChange = { viewModel.setSearch(it) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                placeholder = { Text("Search channels or categories...") },
+                leadingIcon = { Icon(Icons.Default.Search, null) },
+                shape = RoundedCornerShape(12.dp),
+                colors = TextFieldDefaults.colors(
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent
+                )
+            )
+
+            if (uiState.isLoading) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
+            } else if (uiState.channels.isEmpty()) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Default.LiveTv, null, modifier = Modifier.size(64.dp), 
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text("No IPTV channels loaded", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Button(
+                            onClick = { showAddDialog = true },
+                            modifier = Modifier.padding(top = 16.dp)
+                        ) {
+                            Text("Import M3U Playlist")
+                        }
                     }
                 }
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                uiState.groupedChannels.forEach { (group, channels) ->
-                    item {
-                        Text(
-                            text = group,
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(vertical = 8.dp)
-                        )
-                    }
-                    items(channels) { channel ->
-                        ChannelItem(channel = channel, onClick = { onPlayChannel(channel) })
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    uiState.groupedChannels.forEach { (group, channels) ->
+                        item {
+                            Text(
+                                text = group,
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(vertical = 8.dp)
+                            )
+                        }
+                        items(channels) { channel ->
+                            ChannelItem(channel = channel, onClick = { onPlayChannel(channel) })
+                        }
                     }
                 }
             }
@@ -131,20 +144,6 @@ fun IptvScreen(
             }
         )
     }
-
-    val snackbarHostState = remember { SnackbarHostState() }
-    
-    if (uiState.error != null) {
-        LaunchedEffect(uiState.error) {
-            snackbarHostState.showSnackbar(uiState.error!!)
-            viewModel.clearError()
-        }
-    }
-
-    Scaffold(
-        snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
-    ) { paddingValues ->
-        Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
 }
 
 @Composable
