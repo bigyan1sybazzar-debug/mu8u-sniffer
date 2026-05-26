@@ -2,6 +2,7 @@ package com.streamsniffer.app.ui.navigation
 
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.LiveTv
@@ -17,6 +18,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.streamsniffer.app.ui.auth.LoginScreen
 import com.streamsniffer.app.ui.browser.BrowserScreen
 import com.streamsniffer.app.ui.history.HistoryScreen
 import com.streamsniffer.app.ui.iptv.IptvScreen
@@ -28,6 +30,7 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector?
     object Browser : Screen("browser", "Browser", Icons.Default.Language)
     object History : Screen("history", "History", Icons.Default.History)
     object IPTV : Screen("iptv", "IPTV", Icons.Default.LiveTv)
+    object Login : Screen("login", "Login", Icons.Default.Language) // Using Language as a placeholder
     object Player : Screen("player/{url}/{title}", "Player") {
         fun createRoute(url: String, title: String): String {
             val encodedUrl = URLEncoder.encode(url, StandardCharsets.UTF_8.toString())
@@ -52,15 +55,22 @@ fun StreamSnifferNavGraph(
         }
     }
 
+    var isAdmin by remember { mutableStateOf(false) }
+
     Scaffold(
         bottomBar = {
-            if (currentRoute != Screen.Player.route) {
+            if (currentRoute != Screen.Player.route && currentRoute != Screen.Login.route) {
                 NavigationBar(
                     containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
                     tonalElevation = 8.dp
                 ) {
-                    val items = listOf(Screen.Browser, Screen.History, Screen.IPTV)
-                    items.forEach { screen ->
+                    val navigationItems = if (isAdmin) {
+                        listOf(Screen.IPTV, Screen.Browser, Screen.History)
+                    } else {
+                        listOf(Screen.IPTV, Screen.Login)
+                    }
+
+                    navigationItems.forEach { screen ->
                         NavigationBarItem(
                             icon = { Icon(screen.icon!!, contentDescription = screen.title) },
                             label = { Text(screen.title) },
@@ -76,33 +86,57 @@ fun StreamSnifferNavGraph(
                             }
                         )
                     }
+                    
+                    if (isAdmin) {
+                        NavigationBarItem(
+                            icon = { Icon(Icons.Default.ExitToApp, contentDescription = "Logout") },
+                            label = { Text("Logout") },
+                            selected = false,
+                            onClick = { isAdmin = false }
+                        )
+                    }
                 }
             }
         }
     ) { innerPadding ->
         NavHost(
             navController = navController,
-            startDestination = Screen.Browser.route,
+            startDestination = Screen.IPTV.route,
             modifier = Modifier.padding(innerPadding)
         ) {
-            composable(Screen.Browser.route) {
-                BrowserScreen(
-                    onNavigateToPlayer = { url, title ->
-                        navController.navigate(Screen.Player.createRoute(url, title))
-                    }
-                )
-            }
-            composable(Screen.History.route) {
-                HistoryScreen(
-                    onPlayStream = { stream ->
-                        navController.navigate(Screen.Player.createRoute(stream.url, stream.title))
-                    }
-                )
-            }
             composable(Screen.IPTV.route) {
                 IptvScreen(
                     onPlayChannel = { stream ->
                         navController.navigate(Screen.Player.createRoute(stream.url, stream.title))
+                    }
+                )
+            }
+            composable(Screen.Browser.route) {
+                if (isAdmin) {
+                    BrowserScreen(
+                        onNavigateToPlayer = { url, title ->
+                            navController.navigate(Screen.Player.createRoute(url, title))
+                        }
+                    )
+                }
+            }
+            composable(Screen.History.route) {
+                if (isAdmin) {
+                    HistoryScreen(
+                        onPlayStream = { stream ->
+                            navController.navigate(Screen.Player.createRoute(stream.url, stream.title))
+                        }
+                    )
+                }
+            }
+            composable(Screen.Login.route) {
+                // I'll create this screen next
+                LoginScreen(
+                    onLoginSuccess = { 
+                        isAdmin = true
+                        navController.navigate(Screen.IPTV.route) {
+                            popUpTo(Screen.Login.route) { inclusive = true }
+                        }
                     }
                 )
             }

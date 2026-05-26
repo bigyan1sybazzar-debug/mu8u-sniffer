@@ -36,26 +36,10 @@ fun PlayerScreen(
     val uiState by viewModel.uiState.collectAsState()
     val lifecycleOwner = LocalLifecycleOwner.current
 
-    // Initialize player when entering
+    // Initialize and cleanup
     DisposableEffect(url, title) {
-        viewModel.initPlayer(url, title)
         onDispose {
             context.findActivity()?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-        }
-    }
-
-    // Handle lifecycle
-    DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            when (event) {
-                Lifecycle.Event.ON_PAUSE -> viewModel.exoPlayer?.pause()
-                Lifecycle.Event.ON_RESUME -> viewModel.exoPlayer?.play()
-                else -> {}
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
         }
     }
 
@@ -68,50 +52,11 @@ fun PlayerScreen(
             .fillMaxSize()
             .background(Color.Black)
     ) {
-        AndroidView(
-            factory = { ctx ->
-                PlayerView(ctx).apply {
-                    player = viewModel.exoPlayer
-                    useController = true
-                }
-            },
-            modifier = Modifier.fillMaxSize(),
-            update = { view ->
-                view.player = viewModel.exoPlayer
-            }
+        WebViewPlayer(
+            url = url,
+            modifier = Modifier.fillMaxSize()
         )
 
-        // Overlay controls for custom experience
-        if (uiState.error != null) {
-            Surface(
-                modifier = Modifier.fillMaxSize(),
-                color = Color.Black.copy(alpha = 0.8f)
-            ) {
-                Column(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Icon(Icons.Default.Error, "Error", tint = Color.Red, modifier = Modifier.size(64.dp))
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(uiState.error!!)
-                    Spacer(modifier = Modifier.height(24.dp))
-                    Button(onClick = { viewModel.initPlayer(url, title) }) {
-                        Text("Retry")
-                    }
-                    TextButton(onClick = onBackPressed) {
-                        Text("Go Back")
-                    }
-                }
-            }
-        }
-
-        if (uiState.isBuffering) {
-            CircularProgressIndicator(
-                modifier = Modifier.align(Alignment.Center),
-                color = MaterialTheme.colorScheme.primary
-            )
-        }
 
         // Custom Top Bar (shown on tap - implementation can be expanded)
         Row(
